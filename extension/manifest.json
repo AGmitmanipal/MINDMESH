@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "Cortex - Your Private AI Mind",
+  "version": "0.1.0",
+  "description": "Your personal web helper. It remembers and organizes the pages you visit so you can find them instantly.",
+  "icons": {
+    "16": "icon.svg",
+    "32": "icon.svg",
+    "48": "icon.svg",
+    "128": "icon.svg"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "embedding.js",
+        "clustering.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Cortex - Your Private AI Mind",
+    "default_icon": {
+      "16": "icon.svg",
+      "32": "icon.svg",
+      "48": "icon.svg",
+      "128": "icon.svg"
+    }
+  },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:8080/*",
+      "http://localhost/*",
+      "https://localhost/*",
+      "http://127.0.0.1:8080/*",
+      "http://127.0.0.1/*"
+    ]
+  }
+}

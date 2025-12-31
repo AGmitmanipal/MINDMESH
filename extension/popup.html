@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cortex</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: #f8fafc;
+        min-width: 320px;
+        color: #1e293b;
+        overflow: hidden;
+      }
+
+      .container {
+        padding: 20px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      .logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #3b82f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 16px;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+      }
+
+      .title-container {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        font-size: 9px;
+        font-weight: 700;
+        color: #3b82f6;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-box {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f5f9;
+      }
+
+      .status-row:last-child {
+        border-bottom: none;
+      }
+
+      .label {
+        font-size: 12px;
+        color: #64748b;
+        font-weight: 500;
+      }
+
+      .value {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-right: 6px;
+        display: inline-block;
+      }
+
+      .btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+
+      .btn-secondary {
+        background: #f1f5f9;
+        color: #475569;
+      }
+
+      .btn-secondary:hover {
+        background: #e2e8f0;
+      }
+
+      .footer {
+        margin-top: 12px;
+        text-align: center;
+        font-size: 10px;
+        color: #94a3b8;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="logo">C</div>
+        <div class="title-container">
+          <div class="title">Cortex</div>
+          <div class="subtitle">Personal Web Helper</div>
+        </div>
+      </div>
+
+      <div class="status-box">
+        <div class="status-row">
+          <span class="label">Auto Capture</span>
+          <span class="value" id="captureStatus">
+            <label class="switch">
+              <input type="checkbox" id="captureToggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="label">App Status</span>
+          <span class="value">
+            <span class="dot" style="background: #10b981;"></span>Active
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="label">Saved Pages</span>
+          <span class="value" id="pageCount">0</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Memory Size</span>
+          <span class="value" id="storageSize">0 MB</span>
+        </div>
+      </div>
+
+      <style>
+        /* Switch styling */
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 34px;
+          height: 20px;
+        }
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          transition: .4s;
+          border-radius: 20px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 14px;
+          width: 14px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: .4s;
+          border-radius: 50%;
+        }
+        input:checked + .slider {
+          background-color: #3b82f6;
+        }
+        input:checked + .slider:before {
+          transform: translateX(14px);
+        }
+      </style>
+
+      <button class="btn btn-primary" id="openDashboard">
+        Open Dashboard
+      </button>
+      <button class="btn btn-secondary" id="openSettings">
+        Privacy Settings
+      </button>
+
+      <div class="footer">
+        Your data is saved safely on your computer.
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
