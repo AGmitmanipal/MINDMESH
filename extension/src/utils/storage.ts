@@ -3,7 +3,16 @@
  * Production-ready storage with proper schema, migrations, and optimizations
  */
 
-import type { MemoryNode, Embedding, MemoryCluster, SemanticMatch, PrivacyRule, CaptureSettings } from "@shared/extension-types";
+import type {
+  MemoryNode,
+  Embedding,
+  MemoryCluster,
+  SemanticMatch,
+  PrivacyRule,
+  CaptureSettings,
+  AgentSettings,
+  AgentLogEntry,
+} from "@shared/extension-types";
 import { cosineSimilarity, ANNIndex } from "./vector-search";
 
 const DB_NAME = "cortex-memory";
@@ -19,6 +28,21 @@ const STORES = {
   SETTINGS: "settings",
   RULES: "rules",
 } as const;
+
+const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  enabled: false,
+  dryRun: true,
+  allowlistDomains: [],
+  perStepTimeoutMs: 15000,
+  retries: 1,
+  budgets: {
+    maxDepth: 3,
+    maxActions: 15,
+    navigationBudget: 8,
+    clickBudget: 10,
+  },
+  logDomTextMaxChars: 20000,
+};
 
 export class CortexStorage {
   private db: IDBDatabase | null = null;
@@ -457,6 +481,120 @@ export class CortexStorage {
         } : defaultSettings);
       };
       request.onerror = () => reject(new Error("Failed to get settings"));
+    });
+  }
+
+  // Agent Settings Operations
+  async getAgentSettings(): Promise<AgentSettings> {
+    await this.ready();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.SETTINGS], "readonly");
+      const store = transaction.objectStore(STORES.SETTINGS);
+      const request = store.get("agent");
+
+      request.onsuccess = () => {
+        const saved = request.result as any;
+        if (!saved) {
+          resolve(DEFAULT_AGENT_SETTINGS);
+          return;
+        }
+        resolve({
+          enabled: typeof saved.enabled === "boolean" ? saved.enabled : DEFAULT_AGENT_SETTINGS.enabled,
+          dryRun: typeof saved.dryRun === "boolean" ? saved.dryRun : DEFAULT_AGENT_SETTINGS.dryRun,
+          allowlistDomains: Array.isArray(saved.allowlistDomains) ? saved.allowlistDomains : DEFAULT_AGENT_SETTINGS.allowlistDomains,
+          perStepTimeoutMs: typeof saved.perStepTimeoutMs === "number" ? saved.perStepTimeoutMs : DEFAULT_AGENT_SETTINGS.perStepTimeoutMs,
+          retries: typeof saved.retries === "number" ? saved.retries : DEFAULT_AGENT_SETTINGS.retries,
+          budgets: saved.budgets && typeof saved.budgets === "object" ? {
+            maxDepth: typeof saved.budgets.maxDepth === "number" ? saved.budgets.maxDepth : DEFAULT_AGENT_SETTINGS.budgets.maxDepth,
+            maxActions: typeof saved.budgets.maxActions === "number" ? saved.budgets.maxActions : DEFAULT_AGENT_SETTINGS.budgets.maxActions,
+            navigationBudget: typeof saved.budgets.navigationBudget === "number" ? saved.budgets.navigationBudget : DEFAULT_AGENT_SETTINGS.budgets.navigationBudget,
+            clickBudget: typeof saved.budgets.clickBudget === "number" ? saved.budgets.clickBudget : DEFAULT_AGENT_SETTINGS.budgets.clickBudget,
+          } : DEFAULT_AGENT_SETTINGS.budgets,
+          logDomTextMaxChars: typeof saved.logDomTextMaxChars === "number" ? saved.logDomTextMaxChars : DEFAULT_AGENT_SETTINGS.logDomTextMaxChars,
+        });
+      };
+      request.onerror = () => reject(new Error("Failed to get agent settings"));
+    });
+  }
+
+  async updateAgentSettings(settings: Partial<AgentSettings>): Promise<void> {
+    await this.ready();
+    return new Promise(async (resolve, reject) => {
+      const current = await this.getAgentSettings();
+      const updated: AgentSettings = {
+        ...current,
+        ...settings,
+        budgets: { ...current.budgets, ...(settings.budgets || {}) },
+      };
+
+      const transaction = this.db!.transaction([STORES.SETTINGS], "readwrite");
+      const store = transaction.objectStore(STORES.SETTINGS);
+      const request = store.put({ key: "agent", ...updated });
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error("Failed to update agent settings"));
+    });
+  }
+
+  // Agent Logging (reuses ACTIVITY store)
+  async addAgentLog(entry: AgentLogEntry): Promise<void> {
+    await this.ready();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.ACTIVITY], "readwrite");
+      const store = transaction.objectStore(STORES.ACTIVITY);
+      const request = store.put({
+        id: entry.id,
+        type: "agent_log",
+        runId: entry.runId,
+        level: entry.level,
+        message: entry.message,
+        timestamp: entry.timestamp,
+        data: entry.data || {},
+      });
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error("Failed to add agent log"));
+    });
+  }
+
+  async getAgentLogs(runId?: string, limit: number = 200): Promise<AgentLogEntry[]> {
+    await this.ready();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORES.ACTIVITY], "readonly");
+      const store = transaction.objectStore(STORES.ACTIVITY);
+      const index = store.index("timestamp");
+      const request = index.openCursor(null, "prev"); // newest first
+
+      const results: AgentLogEntry[] = [];
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+        if (!cursor) {
+          resolve(results);
+          return;
+        }
+
+        const value: any = cursor.value;
+        if (value?.type === "agent_log") {
+          if (!runId || value.runId === runId) {
+            results.push({
+              id: String(value.id),
+              runId: String(value.runId),
+              level: value.level,
+              message: String(value.message),
+              timestamp: Number(value.timestamp),
+              data: value.data || {},
+            });
+          }
+        }
+
+        if (results.length >= limit) {
+          resolve(results);
+          return;
+        }
+        cursor.continue();
+      };
+
+      request.onerror = () => reject(new Error("Failed to get agent logs"));
     });
   }
 

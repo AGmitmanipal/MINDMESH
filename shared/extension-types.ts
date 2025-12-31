@@ -36,6 +36,12 @@ export interface MemoryNode {
     favicon?: string;
     tabId?: number;
     sessionId?: string;
+    agent?: {
+      runId: string;
+      step: number;
+      actionType?: string;
+      actionId?: string;
+    };
   };
 }
 
@@ -64,6 +70,97 @@ export interface CaptureSettings {
   excludeDomains: string[];
   excludeKeywords: string[];
   maxStorageSize: number;
+}
+
+/**
+ * Autonomous browsing / agent types
+ */
+export type AgentActionType =
+  | "open_tab"
+  | "navigate"
+  | "click"
+  | "type"
+  | "fill_form"
+  | "wait_for_selector"
+  | "wait_for_navigation"
+  | "extract_dom";
+
+export interface AgentAction {
+  id: string;
+  type: AgentActionType;
+  data: Record<string, unknown>;
+}
+
+export interface AgentPageLink {
+  href: string;
+  text: string;
+  selector?: string;
+}
+
+export interface AgentDomSnapshot {
+  url: string;
+  title: string;
+  metaDescription?: string;
+  snippet?: string;
+  mainText: string;
+  headings?: string[];
+  links?: AgentPageLink[];
+  capturedAt: number;
+}
+
+export interface AgentObservation {
+  snapshot?: AgentDomSnapshot;
+  jsErrors?: Array<{
+    message: string;
+    source?: string;
+    lineno?: number;
+    colno?: number;
+    timestamp: number;
+  }>;
+}
+
+export interface AgentBudgets {
+  maxDepth: number;
+  maxActions: number;
+  navigationBudget: number;
+  clickBudget: number;
+}
+
+export interface AgentSettings {
+  enabled: boolean;
+  dryRun: boolean;
+  allowlistDomains: string[]; // If empty, allow all (still subject to extension's privacy/capture settings)
+  perStepTimeoutMs: number;
+  retries: number;
+  budgets: AgentBudgets;
+  logDomTextMaxChars: number; // safety / storage guardrail
+}
+
+export type AgentRunState = "idle" | "planning" | "acting" | "observing" | "stopped" | "completed" | "error";
+
+export interface AgentRunStatus {
+  runId: string | null;
+  state: AgentRunState;
+  goal?: string;
+  startedAt?: number;
+  updatedAt?: number;
+  tabId?: number;
+  depth?: number;
+  actionsTaken?: number;
+  navigations?: number;
+  clicks?: number;
+  lastError?: string;
+}
+
+export type AgentLogLevel = "debug" | "info" | "warn" | "error";
+
+export interface AgentLogEntry {
+  id: string;
+  runId: string;
+  level: AgentLogLevel;
+  message: string;
+  timestamp: number;
+  data?: Record<string, unknown>;
 }
 
 export interface PrivacyRule {
@@ -154,5 +251,40 @@ export type ExtensionMessage =
           type: "open_tab" | "close_tab" | "navigate" | "fill_form" | "click" | "extract";
           data: Record<string, unknown>;
         };
+      };
+    }
+  | {
+      type: "GET_AGENT_SETTINGS";
+      payload?: Record<string, never>;
+    }
+  | {
+      type: "UPDATE_AGENT_SETTINGS";
+      payload: Partial<AgentSettings>;
+    }
+  | {
+      type: "GET_AGENT_STATUS";
+      payload?: Record<string, never>;
+    }
+  | {
+      type: "GET_AGENT_LOGS";
+      payload: { runId?: string; limit?: number };
+    }
+  | {
+      type: "START_AUTONOMOUS_BROWSING";
+      payload: { goal: string; startUrl?: string; tabId?: number };
+    }
+  | {
+      type: "STOP_AUTONOMOUS_BROWSING";
+      payload?: { runId?: string };
+    }
+  | {
+      type: "AGENT_JS_ERROR";
+      payload: {
+        message: string;
+        source?: string;
+        lineno?: number;
+        colno?: number;
+        timestamp: number;
+        url?: string;
       };
     };

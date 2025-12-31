@@ -10,6 +10,83 @@ import type { PageContext } from "@shared/extension-types";
 import { extractReadableText, extractKeywords, getFaviconUrl, getDomain } from "@/lib/text-utils";
 
 /**
+ * Agent DOM extraction helpers (content script side)
+ */
+function safeText(s: string | null | undefined): string {
+  return (s || "").replace(/\s+/g, " ").trim();
+}
+
+function cssEscapeIdent(value: string): string {
+  // Minimal escape for attribute selectors
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function getCssSelector(el: Element): string {
+  const element = el as HTMLElement;
+  if (element.id) return `#${cssEscapeIdent(element.id)}`;
+  const tag = element.tagName.toLowerCase();
+  const dataTest =
+    element.getAttribute("data-testid") ||
+    element.getAttribute("data-test") ||
+    element.getAttribute("data-qa");
+  if (dataTest) return `${tag}[data-testid="${cssEscapeIdent(dataTest)}"]`;
+  const name = element.getAttribute("name");
+  if (name) return `${tag}[name="${cssEscapeIdent(name)}"]`;
+  const href = tag === "a" ? element.getAttribute("href") : null;
+  if (href) return `a[href="${cssEscapeIdent(href)}"]`;
+  // Fallback: tag with nth-of-type
+  const parent = element.parentElement;
+  if (!parent) return tag;
+  const siblings = Array.from(parent.children).filter((c) => (c as HTMLElement).tagName.toLowerCase() === tag);
+  const idx = siblings.indexOf(element);
+  if (idx >= 0 && siblings.length > 1) return `${tag}:nth-of-type(${idx + 1})`;
+  return tag;
+}
+
+function extractAgentDomSnapshot() {
+  const url = window.location.href;
+  const title = document.title || "Untitled Page";
+  const metaDescription = safeText(document.querySelector('meta[name="description"]')?.getAttribute("content"));
+
+  const htmlContent = document.documentElement?.outerHTML || "";
+  const mainText = extractReadableText(htmlContent) || "";
+  const snippet = mainText ? mainText.slice(0, 300) : "";
+
+  const headings = Array.from(document.querySelectorAll("h1,h2,h3"))
+    .map((h) => safeText(h.textContent))
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const links = Array.from(document.querySelectorAll("a[href]"))
+    .map((a) => {
+      const hrefRaw = (a as HTMLAnchorElement).getAttribute("href") || "";
+      let href = hrefRaw;
+      try {
+        href = new URL(hrefRaw, window.location.href).toString();
+      } catch {}
+      const text = safeText((a as HTMLAnchorElement).textContent);
+      return {
+        href,
+        text,
+        selector: getCssSelector(a),
+      };
+    })
+    .filter((l) => Boolean(l.href) && !l.href.startsWith("javascript:") && !l.href.startsWith("mailto:"))
+    .slice(0, 80);
+
+  return {
+    url,
+    title,
+    metaDescription: metaDescription || undefined,
+    snippet: snippet || undefined,
+    mainText,
+    headings,
+    links,
+    capturedAt: Date.now(),
+  };
+}
+
+/**
  * Check if current page should be captured
  */
 function shouldCapturePage(): boolean {
@@ -204,3 +281,51 @@ function init() {
 
 // Start initialization immediately
 init();
+
+/**
+ * Agent message bridge: lets the background worker request deterministic DOM snapshots.
+ */
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  try {
+    if (message?.type === "AGENT_EXTRACT_DOM") {
+      sendResponse(extractAgentDomSnapshot());
+      return true;
+    }
+  } catch (e) {
+    sendResponse({ error: String(e) });
+    return true;
+  }
+  return false;
+});
+
+/**
+ * Agent JS error capture (best effort)
+ */
+window.addEventListener("error", (event) => {
+  try {
+    chrome.runtime.sendMessage({
+      type: "AGENT_JS_ERROR",
+      payload: {
+        message: String(event.message || "Unknown error"),
+        source: String((event as any).filename || ""),
+        lineno: Number((event as any).lineno || 0),
+        colno: Number((event as any).colno || 0),
+        timestamp: Date.now(),
+        url: window.location.href,
+      },
+    });
+  } catch {}
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  try {
+    chrome.runtime.sendMessage({
+      type: "AGENT_JS_ERROR",
+      payload: {
+        message: String((event as any).reason?.message || (event as any).reason || "Unhandled rejection"),
+        timestamp: Date.now(),
+        url: window.location.href,
+      },
+    });
+  } catch {}
+});

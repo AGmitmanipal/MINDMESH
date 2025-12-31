@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cortex Dashboard - Demo</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    header { border-bottom: 1px solid #ccc; padding-bottom: 1rem; }
+    input[type="search"] { width: 300px; padding: 0.5rem; }
+    button { padding: 0.5rem 1rem; }
+    #results { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Cortex Dashboard</h1>
+    <p>Your Personal Web Helper – Demo</p>
+  </header>
+  <main>
+    <p>Search your memory (demo):</p>
+    <input type="search" placeholder="Search memory..." aria-label="Search memory" />
+    <button>Search</button>
+    <div id="results">
+      <p>No results yet. Try searching above.</p>
+    </div>
+  </main>
+  <script>
+    document.querySelector('button').addEventListener('click', () => {
+      const q = document.querySelector('input').value;
+      document.getElementById('results').innerHTML = `
+        <p>You searched for: <strong>${q}</strong></p>
+        <ul>
+          <li>Example result 1 about ${q}</li>
+          <li>Example result 2 about ${q}</li>
+        </ul>
+      `;
+    });
+    document.querySelector('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.querySelector('button').click();
+      }
+    });
+  </script>
+</body>
+</html>

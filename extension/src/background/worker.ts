@@ -12,6 +12,7 @@ import { activityInsightsService } from "../services/activity-insights";
 import { analyticsService } from "../services/analytics-service";
 import { shortcutGenerator } from "../services/shortcut-generator";
 import { actionExecutor } from "../services/action-executor";
+import { autonomousBrowsingAgent } from "../services/autonomous-browsing-agent";
 import { semanticGraphBuilder } from "../utils/semantic-graph";
 import { generateEmbedding } from "../utils/embedding";
 import { extractKeywords } from "@/lib/text-utils";
@@ -303,6 +304,49 @@ const messageHandler = (message: ExtensionMessage, sender: chrome.runtime.Messag
         case "EXECUTE_ACTION": {
           const result = await actionExecutor.execute(message.payload.action);
           return { success: true, data: result };
+        }
+
+        // --- Autonomous browsing agent ---
+        case "GET_AGENT_SETTINGS": {
+          const settings = await cortexStorage.getAgentSettings();
+          return { success: true, data: settings };
+        }
+
+        case "UPDATE_AGENT_SETTINGS": {
+          await cortexStorage.updateAgentSettings(message.payload);
+          const settings = await cortexStorage.getAgentSettings();
+          return { success: true, data: settings };
+        }
+
+        case "GET_AGENT_STATUS": {
+          return { success: true, data: autonomousBrowsingAgent.getStatus() };
+        }
+
+        case "GET_AGENT_LOGS": {
+          const runId = message.payload.runId;
+          const limit = message.payload.limit ?? 200;
+          const logs = await cortexStorage.getAgentLogs(runId, limit);
+          return { success: true, data: logs };
+        }
+
+        case "START_AUTONOMOUS_BROWSING": {
+          const status = await autonomousBrowsingAgent.start(
+            message.payload.goal,
+            message.payload.startUrl,
+            message.payload.tabId
+          );
+          return { success: true, data: status };
+        }
+
+        case "STOP_AUTONOMOUS_BROWSING": {
+          const status = await autonomousBrowsingAgent.stop(message.payload?.runId);
+          return { success: true, data: status };
+        }
+
+        case "AGENT_JS_ERROR": {
+          // Forward to agent (best-effort logging). This is intentionally lightweight.
+          await autonomousBrowsingAgent.onJsError(message.payload);
+          return { success: true };
         }
 
         default:

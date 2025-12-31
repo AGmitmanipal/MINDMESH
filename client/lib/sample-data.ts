@@ -99,8 +99,8 @@ function extractKeywordsFromText(text: string, title: string): string[] {
   ]);
 
   const words = [
-    ...(text.toLowerCase().match(/\b\w+\b/g) || []),
-    ...(title.toLowerCase().match(/\b\w+\b/g) || []),
+    ...text.toLowerCase().match(/\b\w+\b/g),
+    ...title.toLowerCase().match(/\b\w+\b/g),
   ].filter((word) => word.length > 3 && !stopWords.has(word));
 
   const frequency = new Map<string, number>();

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Local Demo</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    input[type="search"] { width: 300px; padding: 0.5rem; }
+    button { padding: 0.5rem 1rem; }
+    #results { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Local Demo</h1>
+  <p>Search box for web task agent demo:</p>
+  <input type="search" placeholder="Search here..." aria-label="Search" />
+  <button>Search</button>
+  <div id="results">
+    <p>Results will appear here after you search.</p>
+  </div>
+  <script>
+    document.querySelector('button').addEventListener('click', () => {
+      const q = document.querySelector('input').value;
+      document.getElementById('results').innerHTML = `<p>You searched for: <strong>${q}</strong></p>`;
+    });
+    document.querySelector('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.querySelector('button').click();
+      }
+    });
+  </script>
+</body>
+</html>
