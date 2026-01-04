@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 
 export const handleAgentEnv: RequestHandler = async (_req, res) => {
-  const key = process.env.GEMINI_API_KEY || "AIzaSyA3wgB3UihrVLXyKbl451FMitgwkUANZRA";
+  const key = process.env.GEMINI_API_KEY;
   const model = process.env.MODEL_USED || "gemini-2.5-flash";
   res.json({
     ok: true,

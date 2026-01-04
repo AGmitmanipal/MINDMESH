@@ -13,6 +13,7 @@ const filesToCopy = [
 
 const assetsToCopy = [
   'favicon.svg',
+  'icon.svg',
   'placeholder.svg',
 ];
 

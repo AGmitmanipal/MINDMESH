@@ -8,25 +8,30 @@
  * Removes scripts, styles, and unnecessary markup
  */
 export function extractReadableText(html: string): string {
-  // Create a temporary container to parse HTML
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+  try {
+    // Create a temporary container to parse HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
 
-  // Remove script and style elements
-  doc.querySelectorAll("script, style, noscript, meta, link").forEach((el) => {
-    el.remove();
-  });
+    // Remove script and style elements
+    doc.querySelectorAll("script, style, noscript, meta, link").forEach((el) => {
+      el.remove();
+    });
 
-  // Get text content
-  let text = doc.body.textContent || "";
+    // Get text content
+    let text = doc.body.textContent || "";
 
-  // Clean up whitespace
-  text = text
-    .replace(/\s+/g, " ") // Collapse multiple spaces
-    .replace(/\n\s*\n/g, "\n") // Remove multiple newlines
-    .trim();
+    // Clean up whitespace
+    text = text
+      .replace(/\s+/g, " ") // Collapse multiple spaces
+      .replace(/\n\s*\n/g, "\n") // Remove multiple newlines
+      .trim();
 
-  return text.slice(0, 10000); // Limit to 10k characters
+    return text.slice(0, 10000); // Limit to 10k characters
+  } catch (error) {
+    console.error("Error extracting readable text:", error);
+    return "";
+  }
 }
 
 /**
@@ -38,106 +43,46 @@ export function extractKeywords(
   title: string = "",
   limit: number = 10
 ): string[] {
-  const stopWords = new Set([
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "but",
-    "in",
-    "on",
-    "at",
-    "to",
-    "for",
-    "of",
-    "with",
-    "by",
-    "from",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "should",
-    "could",
-    "may",
-    "might",
-    "must",
-    "can",
-    "this",
-    "that",
-    "these",
-    "those",
-    "i",
-    "you",
-    "he",
-    "she",
-    "it",
-    "we",
-    "they",
-    "what",
-    "which",
-    "who",
-    "when",
-    "where",
-    "why",
-    "how",
-    "all",
-    "each",
-    "every",
-    "both",
-    "few",
-    "more",
-    "most",
-    "other",
-    "some",
-    "such",
-    "no",
-    "nor",
-    "not",
-    "only",
-    "same",
-    "so",
-    "than",
-    "too",
-    "very",
-  ]);
+  try {
+    const stopWords = new Set([
+      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+      "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+      "being", "have", "has", "had", "do", "does", "did", "will", "would",
+      "should", "could", "may", "might", "must", "can", "this", "that",
+      "these", "those", "i", "you", "he", "she", "it", "we", "they",
+      "what", "which", "who", "when", "where", "why", "how", "all", "each",
+      "every", "both", "few", "more", "most", "other", "some", "such",
+      "no", "nor", "not", "only", "same", "so", "than", "too", "very",
+    ]);
 
-  // Tokenize and filter - handle null from match() when no matches found
-  const textMatches = text.toLowerCase().match(/\b\w+\b/g) || [];
-  const titleMatches = title.toLowerCase().match(/\b\w+\b/g) || [];
-  const words = [
-    ...textMatches,
-    ...titleMatches,
-  ].filter(
-    (word) =>
-      word.length > 3 &&
-      !stopWords.has(word) &&
-      !/^\d+$/.test(word)
-  );
+    // Tokenize and filter - handle null from match() when no matches found
+    const textMatches = text.toLowerCase().match(/\b\w+\b/g) || [];
+    const titleMatches = title.toLowerCase().match(/\b\w+\b/g) || [];
+    const words = [
+      ...textMatches,
+      ...titleMatches,
+    ].filter(
+      (word) =>
+        word.length > 3 &&
+        !stopWords.has(word) &&
+        !/^\d+$/.test(word)
+    );
 
-  // Count frequency
-  const frequency = new Map<string, number>();
-  words.forEach((word) => {
-    frequency.set(word, (frequency.get(word) || 0) + 1);
-  });
+    // Count frequency
+    const frequency = new Map<string, number>();
+    words.forEach((word) => {
+      frequency.set(word, (frequency.get(word) || 0) + 1);
+    });
 
-  // Sort by frequency
-  return Array.from(frequency.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([word]) => word);
+    // Sort by frequency
+    return Array.from(frequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([word]) => word);
+  } catch (error) {
+    console.error("Error extracting keywords:", error);
+    return [];
+  }
 }
 
 /**
@@ -145,25 +90,32 @@ export function extractKeywords(
  * Simple extractive summarization
  */
 export function generateSummary(text: string, maxLength: number = 200): string {
-  // Split into sentences
-  const sentences = text
-    .split(/[.!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  try {
+    if (!text || text.length === 0) return "";
 
-  if (sentences.length === 0) return text.slice(0, maxLength);
+    // Split into sentences
+    const sentences = text
+      .split(/[.!?]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
-  // Take first sentences until we reach maxLength
-  let summary = "";
-  for (const sentence of sentences) {
-    if (summary.length + sentence.length < maxLength) {
-      summary += sentence + ". ";
-    } else {
-      break;
+    if (sentences.length === 0) return text.slice(0, maxLength);
+
+    // Take first sentences until we reach maxLength
+    let summary = "";
+    for (const sentence of sentences) {
+      if (summary.length + sentence.length < maxLength) {
+        summary += sentence + ". ";
+      } else {
+        break;
+      }
     }
-  }
 
-  return summary.trim();
+    return summary.trim();
+  } catch (error) {
+    console.error("Error generating summary:", error);
+    return text.slice(0, maxLength);
+  }
 }
 
 /**
@@ -174,14 +126,19 @@ export function calculateTextSimilarity(
   text1: string,
   text2: string
 ): number {
-  const words1 = new Set(text1.toLowerCase().match(/\b\w+\b/g) || []);
-  const words2 = new Set(text2.toLowerCase().match(/\b\w+\b/g) || []);
+  try {
+    const words1 = new Set(text1.toLowerCase().match(/\b\w+\b/g) || []);
+    const words2 = new Set(text2.toLowerCase().match(/\b\w+\b/g) || []);
 
-  const intersection = Array.from(words1).filter((word) => words2.has(word));
-  const union = new Set([...words1, ...words2]);
+    const intersection = Array.from(words1).filter((word) => words2.has(word));
+    const union = new Set([...words1, ...words2]);
 
-  // Jaccard similarity
-  return union.size === 0 ? 0 : intersection.length / union.size;
+    // Jaccard similarity
+    return union.size === 0 ? 0 : intersection.length / union.size;
+  } catch (error) {
+    console.error("Error calculating text similarity:", error);
+    return 0;
+  }
 }
 
 /**
@@ -212,6 +169,7 @@ export function getFaviconUrl(pageUrl: string): string {
  * Sanitize text for display
  */
 export function sanitizeText(text: string): string {
+  if (!text) return "";
   return text
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

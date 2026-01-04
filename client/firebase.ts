@@ -10,9 +10,19 @@ import {
 } from "firebase/auth";
 
 function requireEnv(name: string): string {
-  const v = (import.meta as any).env?.[name];
-  if (!v) throw new Error(`Missing ${name}. Set it in your .env (Vite requires VITE_ prefix).`);
-  return String(v);
+  const env = import.meta.env;
+  if (!env || !(name in env)) {
+    throw new Error(`Missing ${name}. Set it in your .env (Vite requires VITE_ prefix).`);
+  }
+  const value = env[name];
+  if (typeof value !== 'string') {
+    throw new Error(`${name} must be a string. Please check your .env file.`);
+  }
+  // Allow empty strings during development but warn
+  if (!value) {
+    console.warn(`Warning: ${name} is empty. This may cause Firebase initialization to fail.`);
+  }
+  return value;
 }
 
 const firebaseConfig = {
@@ -22,7 +32,7 @@ const firebaseConfig = {
   storageBucket: requireEnv("VITE_FIREBASE_STORAGE_BUCKET"),
   messagingSenderId: requireEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
   appId: requireEnv("VITE_FIREBASE_APP_ID"),
-  measurementId: (import.meta as any).env?.VITE_FIREBASE_MEASUREMENT_ID || undefined,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || undefined,
 };
 
 export const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
@@ -35,16 +45,26 @@ export async function initAnalytics() {
     const ok = await isSupported();
     if (!ok) return null;
     return getAnalytics(app);
-  } catch {
+  } catch (error) {
+    console.error("Failed to initialize analytics:", error);
     return null;
   }
 }
 
 export async function signUp(email: string, password: string) {
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters");
+  }
   return await createUserWithEmailAndPassword(auth, email, password);
 }
 
 export async function login(email: string, password: string) {
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
   return await signInWithEmailAndPassword(auth, email, password);
 }
 
@@ -55,5 +75,3 @@ export async function logout() {
 export function onAuthStateChanged(cb: (user: User | null) => void) {
   return fbOnAuthStateChanged(auth, cb);
 }
-
-

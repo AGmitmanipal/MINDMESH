@@ -172,12 +172,12 @@ const CATEGORY_DEFINITIONS = {
 // Generate context match reason for explain-why
 function generateContextMatchReason(query: string, node: any): string {
   if (!query) return "Saved page";
-  
+
   const queryLower = query.toLowerCase();
   const titleLower = (node.title || "").toLowerCase();
   const domainLower = (node.metadata?.domain || "").toLowerCase();
   const textLower = (node.readableText || node.snippet || "").toLowerCase().slice(0, 500);
-  
+
   if (titleLower === queryLower) {
     return "Exact title match";
   }
@@ -201,7 +201,7 @@ function generateContextMatchReason(query: string, node: any): string {
 function categorizeUrl(url: string): string {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
-    
+
     // Check categories in priority order (more specific first)
     // This ensures coding sites don't get misclassified as entertainment
     const priorityOrder = [
@@ -225,7 +225,7 @@ function categorizeUrl(url: string): string {
       "portfolio",   // Then portfolio
       "government",  // Then government
     ];
-    
+
     // Check priority categories first
     for (const categoryKey of priorityOrder) {
       const category = CATEGORY_DEFINITIONS[categoryKey as keyof typeof CATEGORY_DEFINITIONS];
@@ -237,7 +237,7 @@ function categorizeUrl(url: string): string {
         }
       }
     }
-    
+
     // Check remaining categories (if any new ones added)
     for (const [key, category] of Object.entries(CATEGORY_DEFINITIONS)) {
       if (!priorityOrder.includes(key)) {
@@ -251,7 +251,7 @@ function categorizeUrl(url: string): string {
   } catch (e) {
     console.error("Failed to categorize URL:", e);
   }
-  
+
   return "miscellaneous";
 }
 
@@ -340,7 +340,7 @@ export default function Dashboard() {
         break;
       }
 
-      // 2) Ask server (Gemini) for next step
+      // 2) Ask server for next step
       const planResp = await fetch("/api/agent/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -418,7 +418,7 @@ export default function Dashboard() {
   // Load data from Extension
   const loadData = useCallback(async () => {
     if (!isAvailable) return;
-    
+
     try {
       // Always prepare a pages fallback so Smart Search can show data even if semantic search returns empty on reload.
       const pagesPromise = getAllPages().catch((err) => {
@@ -428,15 +428,15 @@ export default function Dashboard() {
 
       const nodesPromise = debouncedQuery.trim()
         ? searchMemory(debouncedQuery)
-            .catch((err) => {
-              console.error("Search fail:", err);
-              return [];
-            })
-            .then(async (results) => {
-              if (Array.isArray(results) && results.length > 0) return results;
-              // Fallback: if semantic search returns nothing (e.g., index not ready yet), show all pages.
-              return await pagesPromise;
-            })
+          .catch((err) => {
+            console.error("Search fail:", err);
+            return [];
+          })
+          .then(async (results) => {
+            if (Array.isArray(results) && results.length > 0) return results;
+            // Fallback: if semantic search returns nothing (e.g., index not ready yet), show all pages.
+            return await pagesPromise;
+          })
         : pagesPromise;
 
       // Parallelize all initial requests for maximum speed
@@ -491,7 +491,7 @@ export default function Dashboard() {
             if (debouncedQuery.trim() && node.similarity !== undefined) {
               // Create reason data for search results that might be missing it
               reason = {
-                sharedKeywords: (node.keywords || []).filter((kw: string) => 
+                sharedKeywords: (node.keywords || []).filter((kw: string) =>
                   debouncedQuery.toLowerCase().includes(kw.toLowerCase())
                 ),
                 contextMatch: generateContextMatchReason(debouncedQuery, node),
@@ -506,7 +506,7 @@ export default function Dashboard() {
               };
             }
           }
-          
+
           return {
             id: node.id,
             url: node.url,
@@ -534,18 +534,18 @@ export default function Dashboard() {
   // Initial load and reload when query changes - prevent infinite loop
   const [lastQuery, setLastQuery] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  
+
   useEffect(() => {
     if (!isAvailable) {
       setIsLoading(false);
       return;
     }
-    
+
     // Always load on initial mount (lastQuery is null) or when query actually changed
     if (lastQuery === null || debouncedQuery !== lastQuery) {
       setIsLoading(true);
       setLastQuery(debouncedQuery);
-      
+
       // Add a small delay on initial load to let the extension's seedAlways() complete
       const delayMs = !initialLoadDone && debouncedQuery === "" ? 500 : 0;
       const timer = setTimeout(() => {
@@ -554,14 +554,14 @@ export default function Dashboard() {
           setInitialLoadDone(true);
         });
       }, delayMs);
-      
+
       return () => clearTimeout(timer);
     }
   }, [debouncedQuery, isAvailable, loadData, lastQuery, initialLoadDone]);
 
   // Load analytics when analytics tab is active - prevent infinite loop
   const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
-  
+
   useEffect(() => {
     if (activeTab === "analytics" && isAvailable && !analyticsLoading && !analyticsLoaded) {
       setAnalyticsLoading(true);
@@ -578,7 +578,7 @@ export default function Dashboard() {
           setAnalyticsLoading(false);
         });
     }
-    
+
     // Reset loaded state when switching away from analytics tab
     if (activeTab !== "analytics") {
       setAnalyticsLoaded(false);
@@ -600,14 +600,14 @@ export default function Dashboard() {
         });
       }
     }, 15000); // 15 seconds
-    
+
     return () => clearInterval(interval);
   }, [loadData, isAvailable, debouncedQuery, isLoading]);
 
   // Generate clusters by category
   const clusters = useMemo<Cluster[]>(() => {
     const categoryMap = new Map<string, PageMemory[]>();
-    
+
     memories.forEach((memory) => {
       const category = memory.category || "miscellaneous";
       if (!categoryMap.has(category)) {
@@ -617,7 +617,7 @@ export default function Dashboard() {
     });
 
     const generatedClusters: Cluster[] = [];
-    
+
     for (const [key, definition] of Object.entries(CATEGORY_DEFINITIONS)) {
       const pages = categoryMap.get(key) || [];
       if (pages.length > 0) {
@@ -789,7 +789,7 @@ export default function Dashboard() {
                   <span className="font-bold">Did you know?</span> Cortex organizes your web life automatically so you never lose a link again.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => alert("Cortex uses local semantic search to help you find your browsing history by meaning. Your data never leaves your device.")}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-xs font-bold text-slate-600 dark:text-slate-400"
               >
@@ -882,7 +882,7 @@ export default function Dashboard() {
                                   contextMatch: memory.similarity < 1.0 ? "Semantic match" : "Saved page",
                                   semanticSimilarity: memory.similarity || 1.0
                                 };
-                                
+
                                 return (
                                   <TooltipProvider>
                                     <Tooltip>
@@ -967,7 +967,7 @@ export default function Dashboard() {
                         )}
                       </h1>
                       <p className="text-lg text-slate-500 max-w-2xl leading-relaxed mt-2">
-                        {selectedCategoryFilter 
+                        {selectedCategoryFilter
                           ? `Showing all pages in this category`
                           : `Your browsing organized into ${clusters.length} smart categories based on website types and content.`
                         }
@@ -1041,50 +1041,50 @@ export default function Dashboard() {
                 ) : (
                   // Show category clusters
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
-                  {isLoading && clusters.length === 0 ? (
-                    <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-4">
-                      <Loader className="w-10 h-10 text-primary animate-spin" />
-                      <p className="text-slate-500 font-medium">Categorizing your web life...</p>
-                    </div>
-                  ) : clusters.length === 0 ? (
-                    <div className="col-span-full py-20 text-center space-y-4">
-                      <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-400">
-                        <Sidebar className="w-8 h-8" />
+                    {isLoading && clusters.length === 0 ? (
+                      <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-4">
+                        <Loader className="w-10 h-10 text-primary animate-spin" />
+                        <p className="text-slate-500 font-medium">Categorizing your web life...</p>
                       </div>
-                      <p className="text-slate-500 font-medium">Auto Groups appear once you start browsing and saving pages.</p>
-                    </div>
-                  ) : (
-                    clusters.map((cluster) => (
-                      <div key={cluster.id} className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
-                        <div className={`h-3 bg-gradient-to-r ${cluster.color}`} />
-                        <div className="p-8 space-y-6">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{cluster.name}</h3>
-                              <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold uppercase text-slate-500">
-                                {cluster.itemCount} Page{cluster.itemCount !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                            <p className="text-sm text-slate-500">{cluster.description}</p>
-                          </div>
-                          <div className="space-y-3">
-                            {cluster.pages.map((page) => (
-                              <a key={page.id} href={page.url} target="_blank" rel="noopener noreferrer" className="flex items-center group/link" title={page.title}>
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/link:bg-primary mr-3 transition-all" />
-                                <span className="text-sm text-slate-500 group-hover/link:text-primary transition-colors truncate">{page.title}</span>
-                              </a>
-                            ))}
-                            {cluster.itemCount > 5 && (
-                              <p className="text-xs text-slate-400 mt-1">+ {cluster.itemCount - 5} more pages</p>
-                            )}
-                          </div>
-                          <button onClick={() => setSelectedCategoryFilter(cluster.id)} className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                            View All Pages
-                          </button>
+                    ) : clusters.length === 0 ? (
+                      <div className="col-span-full py-20 text-center space-y-4">
+                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                          <Sidebar className="w-8 h-8" />
                         </div>
+                        <p className="text-slate-500 font-medium">Auto Groups appear once you start browsing and saving pages.</p>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      clusters.map((cluster) => (
+                        <div key={cluster.id} className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all">
+                          <div className={`h-3 bg-gradient-to-r ${cluster.color}`} />
+                          <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{cluster.name}</h3>
+                                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold uppercase text-slate-500">
+                                  {cluster.itemCount} Page{cluster.itemCount !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-500">{cluster.description}</p>
+                            </div>
+                            <div className="space-y-3">
+                              {cluster.pages.map((page) => (
+                                <a key={page.id} href={page.url} target="_blank" rel="noopener noreferrer" className="flex items-center group/link" title={page.title}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover/link:bg-primary mr-3 transition-all" />
+                                  <span className="text-sm text-slate-500 group-hover/link:text-primary transition-colors truncate">{page.title}</span>
+                                </a>
+                              ))}
+                              {cluster.itemCount > 5 && (
+                                <p className="text-xs text-slate-400 mt-1">+ {cluster.itemCount - 5} more pages</p>
+                              )}
+                            </div>
+                            <button onClick={() => setSelectedCategoryFilter(cluster.id)} className="w-full py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                              View All Pages
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
@@ -1134,7 +1134,7 @@ export default function Dashboard() {
                               <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{day.date}</span>
                               <div className="flex items-center gap-3">
                                 <div className="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                  <div 
+                                  <div
                                     className="h-full bg-primary rounded-full transition-all"
                                     style={{ width: `${Math.min(100, (day.count / Math.max(...analytics.daily.map((d: any) => d.count))) * 100)}%` }}
                                   />
@@ -1184,7 +1184,7 @@ export default function Dashboard() {
                                   <p className="text-xs text-slate-400">{site.percentage.toFixed(1)}%</p>
                                 </div>
                                 <div className="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                  <div 
+                                  <div
                                     className="h-full bg-primary rounded-full"
                                     style={{ width: `${site.percentage}%` }}
                                   />
@@ -1206,7 +1206,7 @@ export default function Dashboard() {
                             const categoryDef = CATEGORY_DEFINITIONS[categoryKey as keyof typeof CATEGORY_DEFINITIONS];
                             const categoryName = categoryDef?.name || (categoryKey === "miscellaneous" ? "Miscellaneous" : categoryKey);
                             const categoryColor = categoryDef?.color || "from-slate-400 to-slate-500";
-                            
+
                             return (
                               <div key={cat.category} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                                 <div className="flex items-center justify-between mb-2">
@@ -1219,7 +1219,7 @@ export default function Dashboard() {
                                   <p className="text-sm font-bold text-primary">{cat.percentage.toFixed(1)}%</p>
                                 </div>
                                 <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                  <div 
+                                  <div
                                     className={`h-full bg-gradient-to-r ${categoryColor} rounded-full transition-all`}
                                     style={{ width: `${cat.percentage}%` }}
                                   />
@@ -1248,7 +1248,7 @@ export default function Dashboard() {
                     Automation <span className="text-primary">Agent.</span>
                   </h1>
                   <p className="text-lg text-slate-500 max-w-2xl leading-relaxed">
-                    Uses Gemini (server-side) to plan steps, then executes them via the extension.
+                    Uses a local model to plan steps, then executes them via the extension.
                   </p>
                 </div>
 
@@ -1386,13 +1386,12 @@ export default function Dashboard() {
                         Temporarily stop Cortex from saving new pages. Your existing memories will remain safe and accessible.
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={handleToggleCapture}
-                      className={`w-full py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                        captureEnabled 
-                          ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700" 
+                      className={`w-full py-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${captureEnabled
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                           : "bg-primary text-primary-foreground shadow-lg hover:opacity-90"
-                      }`}
+                        }`}
                     >
                       {captureEnabled ? (
                         <>
@@ -1418,7 +1417,7 @@ export default function Dashboard() {
                         Download your entire browsing history and semantic graph in a portable JSON format for backup.
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={handleExport}
                       className="w-full py-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold text-sm transition-all flex items-center justify-center gap-2"
                     >
@@ -1437,7 +1436,7 @@ export default function Dashboard() {
                         Permanently delete all your saved pages and indexing data. This action cannot be undone.
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={async () => {
                         if (confirm("Are you sure you want to clear all your data? This cannot be undone.")) {
                           const response = await sendMessage({ type: "FORGET_DATA", payload: {} });
@@ -1508,14 +1507,14 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-              <button 
+              <button
                 onClick={() => window.open(selectedMemory.url, '_blank')}
                 className="flex-1 py-4 bg-primary text-primary-foreground rounded-xl font-bold text-sm shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2"
               >
                 <ExternalLink className="w-4 h-4" />
                 Visit Website
               </button>
-              <button 
+              <button
                 onClick={async () => {
                   if (confirm("Remove this memory forever?")) {
                     const response = await sendMessage({ type: "FORGET_DATA", payload: { domain: selectedMemory.domain } });

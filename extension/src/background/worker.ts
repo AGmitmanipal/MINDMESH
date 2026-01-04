@@ -131,6 +131,17 @@ const messageHandler = (message: ExtensionMessage, sender: chrome.runtime.Messag
         return { success: false, error: "Storage initialization failed" };
       }
     }
+    
+    // Additional check: wait for seeding on first critical operations
+    const seedWaitOperations = ["GET_ALL_PAGES", "GET_STATS", "GET_ANALYTICS"];
+    if (seedWaitOperations.includes(message.type) && !seedingComplete) {
+      console.log(`Cortex: ${message.type} waiting for seeding...`);
+      let waitCount = 0;
+      while (!seedingComplete && waitCount < 50) { // 5 seconds max
+        await new Promise(r => setTimeout(r, 100));
+        waitCount++;
+      }
+    }
 
     try {
       switch (message.type) {
@@ -246,20 +257,6 @@ const messageHandler = (message: ExtensionMessage, sender: chrome.runtime.Messag
         }
 
         case "GET_ALL_PAGES": {
-          // Wait for seeding to complete on first load to ensure seed memories are available
-          if (!seedingComplete) {
-            console.log("Cortex: GET_ALL_PAGES waiting for seeding to complete...");
-            let waitCount = 0;
-            while (!seedingComplete && waitCount < 30) { // Wait up to 3 seconds
-              await new Promise(r => setTimeout(r, 100));
-              waitCount++;
-            }
-            if (!seedingComplete) {
-              console.warn("Cortex: Seeding did not complete in time, returning what we have");
-            } else {
-              console.log("Cortex: Seeding complete, proceeding with GET_ALL_PAGES");
-            }
-          }
           
           const pages = await cortexStorage.getAllMemoryNodes(message.payload.limit);
           // Only send what's needed for the dashboard list to save bandwidth and speed up communication
@@ -278,15 +275,6 @@ const messageHandler = (message: ExtensionMessage, sender: chrome.runtime.Messag
         }
 
         case "GET_STATS": {
-          // Wait for seeding to complete on first load
-          if (!seedingComplete) {
-            console.log("Cortex: GET_STATS waiting for seeding to complete...");
-            let waitCount = 0;
-            while (!seedingComplete && waitCount < 30) { // Wait up to 3 seconds
-              await new Promise(r => setTimeout(r, 100));
-              waitCount++;
-            }
-          }
           
           const stats = await cortexStorage.getStats();
           console.log("Cortex: GET_STATS returning", stats);

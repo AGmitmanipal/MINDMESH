@@ -54,9 +54,10 @@ function shouldCapturePage(): boolean {
  */
 function capturePageContext(): PageContext {
   try {
-    const htmlContent = document.documentElement.outerHTML;
+    const htmlContent = document.documentElement?.outerHTML || "";
     const readableText = extractReadableText(htmlContent);
-    const keywords = extractKeywords(readableText, document.title);
+    const title = document.title || "Untitled Page";
+    const keywords = extractKeywords(readableText, title);
 
     return {
       url: window.location.href,
