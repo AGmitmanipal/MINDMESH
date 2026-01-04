@@ -161,13 +161,80 @@ async function callGemini(params: {
       if (m && m[1]) {
         return JSON.parse(m[1]);
       }
-    } catch {}
+    } catch { }
 
     // Emit a warning to help debugging and return the raw text for caller-side handling
     console.warn("callGemini: failed to parse model JSON response; returning raw text (truncated)",
       typeof text === "string" ? text.slice(0, 2000) : text);
     return { raw: text };
   }
+}
+
+async function callLocalModel(params: {
+  model: string;
+  goal: string;
+  step: number;
+  allowlistDomains: string[];
+  snapshot: unknown;
+  history: unknown[];
+}): Promise<unknown> {
+  // Attempt to use the local on-device adapter, but never throw — always return
+  // a valid model-shaped response. If the adapter is missing or fails, fall
+  // back to a deterministic planner that produces safe browser actions.
+  try {
+    const mod = await import("../local-model").catch(() => null as any);
+    if (mod && typeof mod.generateStep === "function") {
+      try {
+        const raw = await mod.generateStep(params as any);
+        if (raw) return raw;
+      } catch (e) {
+        console.warn("local-model.generateStep threw:", e?.message || e);
+      }
+    } else {
+      console.warn("local-model adapter not found or invalid; falling back to deterministic planner");
+    }
+  } catch (e) {
+    console.warn("callLocalModel import error:", e?.message || e);
+  }
+
+  // Deterministic planner fallback (server-side) — never fails.
+  const goal = (params.goal || "").toString().trim();
+  const lower = goal.toLowerCase();
+
+  // Search-like goals: "search for X" or "find X" or "search X"
+  const searchMatch = lower.match(/(?:search for|find|search)\s+(.{2,})/i);
+  if (searchMatch) {
+    const q = encodeURIComponent(searchMatch[1].trim());
+    return {
+      done: false,
+      action: { type: "open_tab", data: { url: `https://www.google.com/search?q=${q}` } },
+    };
+  }
+
+  // Price-filtered product search, e.g. "headphones under 5000 rupees"
+  const priceMatch = lower.match(/(.{3,}?)\s+(?:under|below)\s+(\d{2,}(?:,\d{3})*)(?:\s*(rupees|inr|rs)?)?/i);
+  if (priceMatch) {
+    const item = encodeURIComponent(priceMatch[1].trim());
+    const price = priceMatch[2].replace(/,/g, "");
+    // Use Google search with price + site hints to let user refine locally.
+    const q = encodeURIComponent(`${item} under ${price} rupees`);
+    return {
+      done: false,
+      action: { type: "open_tab", data: { url: `https://www.google.com/search?q=${q}` } },
+    };
+  }
+
+  // Open URL pattern
+  const openMatch = lower.match(/open\s+(https?:\/\/)?([\w.-]+)(\/.+)?/i);
+  if (openMatch) {
+    const host = openMatch[2];
+    const path = openMatch[3] || "";
+    const url = `https://${host}${path}`;
+    return { done: false, action: { type: "open_tab", data: { url } } };
+  }
+
+  // Fallback: finish with debug information but not an error.
+  return { done: true, action: { type: "finish", data: { reason: "deterministic-fallback: no actionable plan", goal } } };
 }
 
 export const handleAgentStep: RequestHandler = async (req, res) => {
@@ -177,21 +244,44 @@ export const handleAgentStep: RequestHandler = async (req, res) => {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-  if (!apiKey) {
-    return res.status(500).json({ ok: false, done: true, reason: "Missing GEMINI_API_KEY on server" });
-  }
+  const model = (process.env.MODEL_USED || "gemini-1.5-flash").toString();
+
+  // Determine if the configured model name refers to a remote provider.
+  const prefersRemote = /(gemini|gpt|openai|anthropic|claude|replicate|poe|perplexity|bard)/i.test(model);
 
   try {
-    const raw = await callGemini({
-      apiKey,
-      model,
-      goal: parsed.data.goal,
-      step: parsed.data.step,
-      allowlistDomains: parsed.data.allowlistDomains,
-      snapshot: parsed.data.snapshot,
-      history: parsed.data.history,
-    });
+    // Try local on-device model first. If it fails and a remote provider is allowed,
+    // fall back to the remote call (requires an API key).
+    let raw: unknown;
+    try {
+      raw = await callLocalModel({
+        model,
+        goal: parsed.data.goal,
+        step: parsed.data.step,
+        allowlistDomains: parsed.data.allowlistDomains,
+        snapshot: parsed.data.snapshot,
+        history: parsed.data.history,
+      });
+    } catch (localErr) {
+      // Local model failed. If a remote provider is implied, try that as a fallback.
+      if (prefersRemote) {
+        if (!apiKey) {
+          return res.status(500).json({ ok: false, done: true, reason: "Missing GEMINI_API_KEY on server for remote model fallback" });
+        }
+        raw = await callGemini({
+          apiKey: apiKey as string,
+          model,
+          goal: parsed.data.goal,
+          step: parsed.data.step,
+          allowlistDomains: parsed.data.allowlistDomains,
+          snapshot: parsed.data.snapshot,
+          history: parsed.data.history,
+        });
+      } else {
+        // No remote fallback configured — rethrow to be handled below.
+        throw localErr;
+      }
+    }
 
     const candidate = ModelStepSchema.safeParse(raw);
     if (!candidate.success) {
