@@ -40,59 +40,95 @@ function deterministicPlanner(params: {
     const goalRaw = (params.goal || "").toString().trim();
     const goal = goalRaw.toLowerCase();
 
-    // 1) Direct URL or hostname anywhere in the goal -> open it
+    // Multi-step automation behaviour based on params.step:
+    // step=0 -> open the appropriate URL/search
+    // step=1 -> try to click first meaningful result on that page
+    // step=2 -> extract page text/details or finish
+    const stepNum = Number(params.step || 0);
     const urlRegex = /(?:https?:\/\/[^\s]+|(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?)/i;
     const urlFound = goalRaw.match(urlRegex);
+
+    // Helper: build google search URL (optionally with site hint)
+    const makeGoogleSearch = (q: string, siteHint?: string) => {
+        const full = q + (siteHint ? ` ${siteHint}` : "");
+        return `https://www.google.com/search?q=${encodeURIComponent(full)}`;
+    };
+
+    // Helper: amazon search URL (use .in by default)
+    const makeAmazonSearch = (q: string) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}`;
+
+    // Patterns
+    const searchMatch = goal.match(/(?:search for|find|search)\s+(.{2,})/i);
+    const amazonMatch = goal.match(/(?:on\s+)?(amazon(?:\.in|\.com|\.co\.uk|\.de|\.ca)?)\b/i);
+    const priceMatch = goal.match(/(.{3,}?)\s+(?:under|below)\s+(\d{2,}(?:,\d{3})*)(?:\s*(rupees|inr|rs)?)?/i);
+
+    // If a plain URL/hostname is present, handle navigation and follow-up steps
     if (urlFound) {
         let url = urlFound[0];
-        if (!/^https?:\/\//i.test(url)) {
-            url = `https://${url}`;
+        if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+        if (stepNum === 0) return { done: false, action: { type: "open_tab", data: { url } } };
+        if (stepNum === 1) return { done: false, action: { type: "click", data: { selector: "a[href]:not([role])" } } };
+        return { done: true, action: { type: "finish", data: { reason: "completed deterministic navigation", url } } };
+    }
+
+    // AMAZON SEARCH FLOW
+    if (searchMatch && amazonMatch) {
+        const query = searchMatch[1].trim();
+        if (stepNum === 0) {
+            // open amazon search for the query
+            return { done: false, action: { type: "open_tab", data: { url: makeAmazonSearch(query) } } };
         }
-        return { done: false, action: { type: "open_tab", data: { url } } };
-    }
-
-    // 2) Commands like "go to X", "visit X", "navigate to X", "open X"
-    const verbMatch = goal.match(/^(?:go to|visit|navigate to|open|visit the|open the)\s+(.{2,})/i);
-    if (verbMatch) {
-        const target = verbMatch[1].trim();
-        const tUrl = (target.match(urlRegex) || [target])[0];
-        let url = tUrl;
-        if (!/^https?:\/\//i.test(url)) {
-            url = `https://${url}`;
+        if (stepNum === 1) {
+            // click first search result item
+            return { done: false, action: { type: "click", data: { selector: 'div[data-component-type="s-search-result"] h2 a' } } };
         }
-        return { done: false, action: { type: "open_tab", data: { url } } };
+        if (stepNum === 2) {
+            // extract page text (product title and price) - let client handle parsing
+            return { done: false, action: { type: "extract", data: { mode: "text" } } };
+        }
+        return { done: true, action: { type: "finish", data: { reason: "amazon deterministic flow complete" } } };
     }
 
-    // 3) Search queries: "search for X" or "find X" or "search X"
-    const searchMatch = goal.match(/(?:search for|find|search)\s+(.{2,})/i);
-    if (searchMatch) {
-        const q = encodeURIComponent(searchMatch[1].trim());
-        return {
-            done: false,
-            action: {
-                type: "open_tab",
-                data: { url: `https://www.google.com/search?q=${q}` },
-            },
-        };
-    }
-
-    // 4) Price-filtered product search, e.g. "headphones under 5000 rupees"
-    const priceMatch = goal.match(/(.{3,}?)\s+(?:under|below)\s+(\d{2,}(?:,\d{3})*)(?:\s*(rupees|inr|rs)?)?/i);
+    // Generic search with price handling (no site specified)
     if (priceMatch) {
-        const item = encodeURIComponent(priceMatch[1].trim());
+        const item = priceMatch[1].trim();
         const price = priceMatch[2].replace(/,/g, "");
-        const q = encodeURIComponent(`${item} under ${price} rupees`);
-        return {
-            done: false,
-            action: { type: "open_tab", data: { url: `https://www.google.com/search?q=${q}` } },
-        };
+        const full = `${item} under ${price} rupees`;
+        if (stepNum === 0) return { done: false, action: { type: "open_tab", data: { url: makeGoogleSearch(full) } } };
+        if (stepNum === 1) return { done: false, action: { type: "click", data: { selector: 'div[data-attrid], div[data-component-type="s-search-result"] h2 a, a' } } };
+        return { done: true, action: { type: "finish", data: { reason: "search flow complete" } } };
     }
 
     // 5) Fallback: finish with reason but include the goal for debugging.
-    return {
-        done: true,
-        action: { type: "finish", data: { reason: "deterministic-planner: no matching heuristic", goal: params.goal } },
-    };
+    // Fallback behavior: open a Google search for the full goal. If the user
+    // specified a site (e.g. "on amazon" or "on amazon.in"), add a site: hint.
+    try {
+        const goalText = (params.goal || "").toString().trim();
+        // detect explicit site hints like "on amazon" or "on amazon.in"
+        const siteMatch = goalText.match(/on\s+([\w.-]+\.(?:com|in|co|net|org|co\.uk|de|ca))/i);
+        let siteHint = "";
+        if (siteMatch) {
+            // normalize simple vendor names to common domains
+            const s = siteMatch[1].toLowerCase();
+            if (/^amazon(\.|$)/i.test(s) || /amazon/i.test(goalText)) {
+                siteHint = " site:amazon.in OR site:amazon.com";
+            } else {
+                siteHint = ` site:${s}`;
+            }
+        }
+
+        // If there's a price mention like "under 5000 rupees", keep it verbatim in query
+        const query = encodeURIComponent(goalText + (siteHint ? siteHint : ""));
+        return {
+            done: false,
+            action: { type: "open_tab", data: { url: `https://www.google.com/search?q=${query}` } },
+        };
+    } catch (e) {
+        return {
+            done: true,
+            action: { type: "finish", data: { reason: "deterministic-planner: fallback failed", goal: params.goal } },
+        };
+    }
 }
 
 export async function generateStep(params: {
