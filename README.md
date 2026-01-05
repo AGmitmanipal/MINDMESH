@@ -81,3 +81,21 @@ We believe your history belongs to you.
 
 **Built with ❤️ for the Samsung Prism WebAgent Hackathon**
 
+**Resources Used:**
+
+Technical Resources:
+--> Browser WebExtension APIs (Chrome / Chromium)
+--> IndexedDB (local storage for sessions & embeddings)
+--> WASM toolchains (for on-device embeddings)
+--> Local ANN / Vector Index libraries
+--> React.js (UI dashboard)
+
+AI / ML Resources:
+--> On-device embedding models (WASM-based, open-source)
+--> spaCy (for basic NLP workflows)
+--> Semantic embeddings & vector similarity techniques
+
+Dev & Design Tools:
+--> Git & GitHub
+--> Eraser.io, Napkin.ai, Gamma.ai for basic template designs 
+--> VS Code
